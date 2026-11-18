@@ -2,7 +2,7 @@ services:
   - type: web
     name: tinystories-gpt
     runtime: python
-    plan: starter  # free (512 MB) may work but is tight for torch + the model
+    plan: free  # peaks around 420 MB of 512 MB; use starter if it runs out of memory
     buildCommand: pip install -r requirements-serve.txt
     startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
