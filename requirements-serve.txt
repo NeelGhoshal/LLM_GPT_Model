@@ -1,0 +1,6 @@
+# Dependencies for serving the model (CPU only). Used by Render.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.6.0+cpu
+tokenizers
+fastapi
+uvicorn[standard]

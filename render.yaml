@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: tinystories-gpt
+    runtime: python
+    plan: starter  # free (512 MB) may work but is tight for torch + the model
+    buildCommand: pip install -r requirements-serve.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: TORCH_THREADS
+        value: "1"
+      # If you host the weights elsewhere instead of committing out/model.pt,
+      # set MODEL_URL to a direct download link (e.g. a GitHub Release asset).
+      - key: MODEL_URL
+        sync: false

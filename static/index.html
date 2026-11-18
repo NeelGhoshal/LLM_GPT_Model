@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TinyStories GPT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f3ec; --paper: #fffdf8; --ink: #2a2622; --muted: #7a7168;
+    --line: #e4dccf; --accent: #c2562f; --accent-ink: #fff; --prompt: #8a4a2c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1816; --paper: #23201d; --ink: #ece6dd; --muted: #9a9085;
+      --line: #38332e; --accent: #e07a4f; --accent-ink: #1a1816; --prompt: #f0a37f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.5 Inter, system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 2.2rem;
+       margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 32px; }
+  label { display: block; font-size: .85rem; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+  textarea { width: 100%; min-height: 84px; resize: vertical; padding: 12px 14px;
+             font: inherit; color: var(--ink); background: var(--paper);
+             border: 1px solid var(--line); border-radius: 10px; }
+  textarea:focus, input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 18px 0 22px; }
+  .controls output { float: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  button { font: inherit; font-weight: 500; padding: 10px 18px; border-radius: 999px;
+           border: 1px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button:disabled { opacity: .5; cursor: default; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 0; }
+  .chip { font-size: .85rem; padding: 5px 12px; }
+  #story { margin-top: 32px; padding: 28px 30px; min-height: 160px; background: var(--paper);
+           border: 1px solid var(--line); border-radius: 14px; white-space: pre-wrap;
+           font: 1.15rem/1.7 Fraunces, Georgia, serif; }
+  #story .p { color: var(--prompt); font-weight: 600; }
+  #story .empty { color: var(--muted); font-style: italic; }
+  #status { color: var(--muted); font-size: .85rem; margin-top: 10px; min-height: 1.3em; }
+  .cursor { display: inline-block; width: .5ch; background: var(--accent); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  footer { color: var(--muted); font-size: .8rem; margin-top: 40px; }
+  @media (max-width: 560px) { .controls { grid-template-columns: 1fr; } #story { padding: 20px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>TinyStories GPT</h1>
+  <p class="sub">A small language model trained from scratch on children's stories. Start a story and it will finish it.</p>
+
+  <label for="prompt">Story opening</label>
+  <textarea id="prompt">Once upon a time, a little fox</textarea>
+  <div class="chips">
+    <button class="chip">The little dragon was afraid of</button>
+    <button class="chip">Tom and Lily went to the park and</button>
+    <button class="chip">One day, a cat found a shiny key</button>
+  </div>
+
+  <div class="controls">
+    <div><label for="temp">Temperature <output id="tempv"></output></label>
+      <input id="temp" type="range" min="0.1" max="1.5" step="0.05" value="0.8"></div>
+    <div><label for="topk">Top-k <output id="topkv"></output></label>
+      <input id="topk" type="range" min="1" max="200" step="1" value="50"></div>
+    <div><label for="len">Max length <output id="lenv"></output></label>
+      <input id="len" type="range" min="20" max="500" step="10" value="250"></div>
+  </div>
+
+  <div class="actions">
+    <button id="go" class="primary">Write story</button>
+    <button id="stop" disabled>Stop</button>
+  </div>
+
+  <div id="story"><span class="empty">Your story will appear here.</span></div>
+  <div id="status"></div>
+  <footer>Runs on CPU, so the first request after the server wakes up can take a while.</footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+for (const [i, o] of [["temp","tempv"],["topk","topkv"],["len","lenv"]]) {
+  const sync = () => $(o).textContent = $(i).value; $(i).oninput = sync; sync();
+}
+document.querySelectorAll(".chip").forEach(c => c.onclick = () => { $("prompt").value = c.textContent; });
+
+let ctrl = null;
+$("stop").onclick = () => ctrl && ctrl.abort();
+$("go").onclick = async () => {
+  const prompt = $("prompt").value.trim() || "Once upon a time";
+  const story = $("story");
+  story.innerHTML = "";
+  const p = document.createElement("span"); p.className = "p"; p.textContent = prompt;
+  const out = document.createElement("span");
+  const cur = document.createElement("span"); cur.className = "cursor"; cur.innerHTML = "&nbsp;";
+  story.append(p, out, cur);
+  $("go").disabled = true; $("stop").disabled = false;
+  $("status").textContent = "Thinking…";
+  ctrl = new AbortController();
+  const t0 = performance.now(); let n = 0;
+  try {
+    const res = await fetch("/api/generate", {
+      method: "POST", headers: {"Content-Type": "application/json"}, signal: ctrl.signal,
+      body: JSON.stringify({prompt, temperature: +$("temp").value, top_k: +$("topk").value,
+                            max_new_tokens: +$("len").value}),
+    });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const {value, done} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (!line.startsWith("data: ")) continue;
+        const msg = JSON.parse(line.slice(6));
+        if (msg.text) { out.textContent += msg.text; n++;
+          $("status").textContent = `${n} tokens · ${((performance.now()-t0)/1000).toFixed(1)}s`; }
+      }
+    }
+    $("status").textContent = `Done: ${n} tokens in ${((performance.now()-t0)/1000).toFixed(1)}s`;
+  } catch (e) {
+    $("status").textContent = e.name === "AbortError" ? "Stopped." : `Error: ${e.message}`;
+  } finally {
+    cur.remove(); $("go").disabled = false; $("stop").disabled = true; ctrl = null;
+  }
+};
+</script>
+</body>
+</html>
