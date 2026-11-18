@@ -17,10 +17,13 @@ After 6 hours of training it reaches a validation loss of 1.285 (perplexity
 > coming from outside. He started to panic and his heart was pounding. He ran
 > to find his mother. "Mama! The monster is coming!" he cried.
 
+**Try it in your browser: https://tinystories-gpt.onrender.com**
+
 ## Contents
 
 - [Files](#files)
 - [Run it](#run-it)
+- [Website](#website)
 - [Data](#data)
 - [Tokenizer](#tokenizer)
 - [Model](#model)
@@ -39,7 +42,11 @@ After 6 hours of training it reaches a validation loss of 1.285 (perplexity
 | `train.py` | Training loop: bf16, AdamW, warmup and cosine decay, wall-clock budget, checkpoints, `--resume` |
 | `sample.py` | Generates stories from the trained weights |
 | `tokenizer.json` | The trained tokenizer |
-| `out/model.pt` | Trained weights (65 MB, half precision); not tracked by git |
+| `out/model.pt` | Trained weights (65 MB, half precision) |
+| `server.py` | Web server: streams stories from the model to the page |
+| `static/index.html` | The web page |
+| `requirements-serve.txt` | CPU-only dependencies for the web server |
+| `render.yaml` | Render deployment config |
 
 ## Run it
 
@@ -65,6 +72,27 @@ python sample.py "Once upon a time, a little fox"
 including the optimizer state and the time already used. Use `--data-dir` and
 `--out` to keep the token files and checkpoints outside a synced folder such
 as OneDrive.
+
+## Website
+
+The model is hosted at **https://tinystories-gpt.onrender.com**. Type the
+opening of a story, adjust temperature, top-k and length, and the model writes
+the rest, streaming it word by word.
+
+It runs on Render's free plan, on CPU only: a story of a few hundred tokens takes
+around half a minute, and after about 15 minutes with no visitors the server
+sleeps, so the next visit takes about a minute to wake it. One story is generated
+at a time.
+
+To run the site locally:
+
+```
+pip install -r requirements-serve.txt
+uvicorn server:app --reload
+```
+
+Then open http://127.0.0.1:8000. Pushes to `main` redeploy the hosted site
+automatically.
 
 ## Data
 
